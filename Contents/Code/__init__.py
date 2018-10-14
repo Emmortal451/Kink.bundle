@@ -1,11 +1,12 @@
 # Kink.com
+# coding: utf-8
 import re
 
 # URLS
-EXC_BASEURL = 'http://www.kink.com/'
-EXC_SEARCH_MOVIES = EXC_BASEURL + 'search?q=%s'
-EXC_MOVIE_INFO = EXC_BASEURL + 'shoot/%s'
-EXC_MODEL_INFO = EXC_BASEURL + 'model/%s'
+EXC_BASEURL = 'http://www.kink.com'
+EXC_SEARCH_MOVIES = EXC_BASEURL + '/search?q=%s'
+EXC_MOVIE_INFO = EXC_BASEURL + '/shoot/%s'
+EXC_MODEL_INFO = EXC_BASEURL + '/model/%s'
 
 def Start():
   HTTP.CacheTime = CACHE_1DAY
@@ -15,6 +16,24 @@ class KinkAgent(Agent.Movies):
   languages = [Locale.Language.English]
   accepts_from = ['com.plexapp.agents.localmedia']
   primary_provider = True
+
+  def Log(self, message, *args):
+      Log(message, *args)
+
+  def getStringContentFromXPath(self, source, query):
+      return source.xpath('string(' + query + ')')
+
+  def getAnchorUrlFromXPath(self, source, query):
+      anchor = source.xpath(query)
+
+      if len(anchor) == 0:
+          return None
+
+      return anchor[0].get('href')
+
+  def getStringContentFromXPath(self, source, query):
+      return source.xpath('string(' + query + ')')
+
 
   def search(self, results, media, lang):
 
@@ -44,24 +63,25 @@ class KinkAgent(Agent.Movies):
         if link.strip():
           metadata.studio = link.strip()
           metadata.genres.add(metadata.studio)
+          metadata.collections.add(metadata.studio)
           break
     except:
       pass
 
     # add channels to genres
     # add other tags to collections
-    metadata.collections.clear()
+    #metadata.collections.clear()
     tags = html.xpath('//div[@class="shoot-info"]//a[starts-with(@href,"/tag/")]')
     for tag in tags:
       if tag.get('href').endswith(':channel'):
         if not metadata.studio:
           metadata.studio = tag.text_content().strip()
-        metadata.genres.add(tag.text_content().strip())
-      else:
         metadata.collections.add(tag.text_content().strip())
+      else:
+        metadata.genres.add(tag.text_content().strip())
 
     # set movie title to shoot title
-    metadata.title = html.xpath('//div[@class="shoot-info"]//h1/text()')[0] + " (" + metadata.id + ")"
+	metadata.title = html.xpath('//div[@class="shoot-info"]//h1/text()')[0] + " (" + metadata.id + ")"
 
     # set content rating to XXX
     metadata.content_rating = 'XXX'
@@ -77,12 +97,21 @@ class KinkAgent(Agent.Movies):
     except: pass
 
     # set poster to the image that kink.com chose as preview
-    try:
-      thumbpUrl = html.xpath('//video/@poster')[0]
-      thumbp = HTTP.Request(thumbpUrl)
-      metadata.posters[thumbpUrl] = Proxy.Media(thumbp)
-    except: pass
+    #try:
+    #  thumbpUrl = html.xpath('//video/@poster')[0]
+    #  thumbp = HTTP.Request(thumbpUrl)
+    #  metadata.posters[thumbpUrl] = Proxy.Media(thumbp)
+    #except: pass
     
+    # fill poster art with all images, so they can be used as options 
+    try:
+      imgs = html.xpath('//div[@id="previewImages"]//img')
+      for img in imgs:
+        thumbUrl = re.sub(r'/h/[0-9]{3,3}/', r'/h/830/', img.get('src'))
+        thumb = HTTP.Request(thumbUrl)
+        metadata.posters[thumbUrl] = Proxy.Media(thumb)
+    except: pass
+
     # fill movie art with all images, so they can be used as backdrops
     try:
       imgs = html.xpath('//div[@id="previewImages"]//img')
@@ -102,40 +131,74 @@ class KinkAgent(Agent.Movies):
         metadata.summary.strip()
     except: pass
 
-    # director
-    try:
-      metadata.directors.clear()
-      director_id = html.xpath('//div[@class="shoot-page"]/@data-director')[0]
-      director_html = HTML.ElementFromURL(EXC_MODEL_INFO % director_id,
-                                          headers={'Cookie': 'viewing-preferences=straight%2Cgay'})
-      director_name = director_html.xpath('//h1[@class="page-title"]')[0].text_content()
-      try:
-        director = metadata.directors.new()
-        director.name = director_name
-      except:
-        try:
-          metadata.directors.add(director_name)
-        except: pass
-    except: pass
+
     
     # starring
     try:
       starring = html.xpath('//p[@class="starring"]/*[@class="names"]/a')
       metadata.roles.clear()
+      modelcount = 0
       for member in starring:
         role = metadata.roles.new()
         lename = member.text_content().strip()
+        modelurl = EXC_BASEURL + member.attrib['href']
+        self.Log('modelurl = %s', modelurl)
+        modelhtml = HTML.ElementFromURL(modelurl, headers={'Cookie': 'viewing-preferences=straight%2Cgay'})
+        model = modelhtml.xpath('//div[@id="modelImage"]/img[@src]')
+        modelimage = model[0].attrib['src']
+        self.Log('model image = %s', modelimage)
+        modelcount = modelcount +1
         try:
           role.name = lename
+          role.photo = modelimage
         except:
           try:
             role.actor = lename
+            role.photo = modelimage
           except: pass
     except: pass
+
+
+	# new starring
+    starring = html.xpath('//p[@class="starring"]/*[@class="names"]/a')
+    self.Log('---------------------------new starring attempt--------------------------------')
+    for member in starring:
+      
+      testlink = EXC_BASEURL + member.attrib['href']
+      self.Log('testlink = %s', testlink)
+      modelhtml = HTML.ElementFromURL(testlink, headers={'Cookie': 'viewing-preferences=straight%2Cgay'})
+      model = modelhtml.xpath('//div[@id="modelImage"]/img[@src]')
+      modelimage = model[0].attrib['src']
+      self.Log('model image = %s', modelimage)
+      try:
+        role.name = lename
+      except:
+        try:
+          role.actor = lename
+        except: pass
+
+
+    # director  
+    try:
+      htmldirector = html.xpath('//p[@class="director"]/a')
+      metadata.directors.clear()
+      for member in htmldirector:
+        dirname = member.text_content().strip()
+        self.Log('dirname variable = %s',dirname)
+      try:
+        director = metadata.directors.new()
+        director.name = dirname
+      except:
+        try:
+          director = metadata.directors.new()
+          metadata.directors.add(dirname)
+        except: pass
+    except: pass
+
 
     # rating
     try:
       rating_dict = JSON.ObjectFromURL(url=EXC_BASEURL + 'api/ratings/%s' % metadata.id,
                                        headers={'Cookie': 'viewing-preferences=straight%2Cgay'})
-      metadata.rating = float(rating_dict['avgRating']) * 2
+      metadata.rating = float(rating_dict['average']) * 2
     except: pass
