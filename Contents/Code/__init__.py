@@ -1,5 +1,4 @@
 # Kink.com
-# coding: utf-8
 import re
 
 # URLS
@@ -16,24 +15,6 @@ class KinkAgent(Agent.Movies):
   languages = [Locale.Language.English]
   accepts_from = ['com.plexapp.agents.localmedia']
   primary_provider = True
-
-  def Log(self, message, *args):
-      Log(message, *args)
-
-  def getStringContentFromXPath(self, source, query):
-      return source.xpath('string(' + query + ')')
-
-  def getAnchorUrlFromXPath(self, source, query):
-      anchor = source.xpath(query)
-
-      if len(anchor) == 0:
-          return None
-
-      return anchor[0].get('href')
-
-  def getStringContentFromXPath(self, source, query):
-      return source.xpath('string(' + query + ')')
-
 
   def search(self, results, media, lang):
 
@@ -96,14 +77,7 @@ class KinkAgent(Agent.Movies):
       metadata.year = metadata.originally_available_at.year
     except: pass
 
-    # set poster to the image that kink.com chose as preview
-    #try:
-    #  thumbpUrl = html.xpath('//video/@poster')[0]
-    #  thumbp = HTTP.Request(thumbpUrl)
-    #  metadata.posters[thumbpUrl] = Proxy.Media(thumbp)
-    #except: pass
-    
-    # fill poster art with all images, so they can be used as options 
+    # fill poster art with all images, so the vertical images can be used as options
     try:
       imgs = html.xpath('//div[@id="previewImages"]//img')
       for img in imgs:
@@ -131,23 +105,17 @@ class KinkAgent(Agent.Movies):
         metadata.summary.strip()
     except: pass
 
-
-    
     # starring
     try:
       starring = html.xpath('//p[@class="starring"]/*[@class="names"]/a')
       metadata.roles.clear()
-      modelcount = 0
       for member in starring:
         role = metadata.roles.new()
         lename = member.text_content().strip()
         modelurl = EXC_BASEURL + member.attrib['href']
-        self.Log('modelurl = %s', modelurl)
         modelhtml = HTML.ElementFromURL(modelurl, headers={'Cookie': 'viewing-preferences=straight%2Cgay'})
         model = modelhtml.xpath('//div[@id="modelImage"]/img[@src]')
         modelimage = model[0].attrib['src']
-        self.Log('model image = %s', modelimage)
-        modelcount = modelcount +1
         try:
           role.name = lename
           role.photo = modelimage
@@ -158,33 +126,12 @@ class KinkAgent(Agent.Movies):
           except: pass
     except: pass
 
-
-	# new starring
-    starring = html.xpath('//p[@class="starring"]/*[@class="names"]/a')
-    self.Log('---------------------------new starring attempt--------------------------------')
-    for member in starring:
-      
-      testlink = EXC_BASEURL + member.attrib['href']
-      self.Log('testlink = %s', testlink)
-      modelhtml = HTML.ElementFromURL(testlink, headers={'Cookie': 'viewing-preferences=straight%2Cgay'})
-      model = modelhtml.xpath('//div[@id="modelImage"]/img[@src]')
-      modelimage = model[0].attrib['src']
-      self.Log('model image = %s', modelimage)
-      try:
-        role.name = lename
-      except:
-        try:
-          role.actor = lename
-        except: pass
-
-
     # director  
     try:
       htmldirector = html.xpath('//p[@class="director"]/a')
       metadata.directors.clear()
       for member in htmldirector:
         dirname = member.text_content().strip()
-        self.Log('dirname variable = %s',dirname)
       try:
         director = metadata.directors.new()
         director.name = dirname
