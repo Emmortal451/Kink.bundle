@@ -105,6 +105,22 @@ class KinkAgent(Agent.Movies):
         metadata.summary.strip()
     except: pass
 
+    # director  
+    try:
+      htmldirector = html.xpath('//p[@class="director"]/a')
+      metadata.directors.clear()
+      for member in htmldirector:
+        dirname = member.text_content().strip()
+      try:
+        director = metadata.directors.new()
+        director.name = dirname
+      except:
+        try:
+          director = metadata.directors.new()
+          metadata.directors.add(dirname)
+        except: pass
+    except: pass
+    
     # starring
     try:
       starring = html.xpath('//p[@class="starring"]/*[@class="names"]/a')
@@ -125,23 +141,6 @@ class KinkAgent(Agent.Movies):
             role.photo = modelimage
           except: pass
     except: pass
-
-    # director  
-    try:
-      htmldirector = html.xpath('//p[@class="director"]/a')
-      metadata.directors.clear()
-      for member in htmldirector:
-        dirname = member.text_content().strip()
-      try:
-        director = metadata.directors.new()
-        director.name = dirname
-      except:
-        try:
-          director = metadata.directors.new()
-          metadata.directors.add(dirname)
-        except: pass
-    except: pass
-
 
     # rating
     try:
